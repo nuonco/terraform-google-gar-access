@@ -29,3 +29,19 @@ variable "customer_principals" {
     Workload Identity Pool.
   EOT
 }
+
+variable "workload_identity_pool_id" {
+  type        = string
+  default     = "nuon-aws"
+  description = "ID of the Workload Identity Pool created when `aws_principals` is set. One pool is shared across all AWS accounts."
+}
+
+variable "aws_principals" {
+  type = list(object({
+    aws_account_id = string
+    provider_id    = optional(string)
+    display_name   = optional(string)
+  }))
+  default     = []
+  description = "AWS accounts allowed to federate via Workload Identity Federation. One provider is created per entry. `provider_id` defaults to `aws-<last 6 chars of account_id>`."
+}

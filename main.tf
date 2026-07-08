@@ -1,16 +1,45 @@
+locals {
+  all_repositories    = distinct(compact(concat(var.repository_id != null ? [var.repository_id] : [], var.repositories)))
+  exact_repositories  = [for r in local.all_repositories : r if !endswith(r, "*")]
+  repository_prefixes = [for r in local.all_repositories : trimsuffix(r, "*") if endswith(r, "*")]
+}
+
 resource "google_service_account" "nuon_gar_access" {
   project      = var.project_id
   account_id   = var.service_account_id
   display_name = "Nuon GAR access"
   description  = "Service account used by Nuon installs to pull images from Artifact Registry"
+
+  lifecycle {
+    precondition {
+      condition     = length(local.all_repositories) > 0
+      error_message = "Set `repositories` (or the deprecated `repository_id`) to at least one repository ID or prefix pattern."
+    }
+  }
 }
 
 resource "google_artifact_registry_repository_iam_member" "reader" {
+  for_each = toset(local.exact_repositories)
+
   project    = var.project_id
   location   = var.repository_location
-  repository = var.repository_id
+  repository = each.value
   role       = "roles/artifactregistry.reader"
   member     = "serviceAccount:${google_service_account.nuon_gar_access.email}"
+}
+
+resource "google_project_iam_member" "prefix_reader" {
+  for_each = toset(local.repository_prefixes)
+
+  project = var.project_id
+  role    = "roles/artifactregistry.reader"
+  member  = "serviceAccount:${google_service_account.nuon_gar_access.email}"
+
+  condition {
+    title       = "nuon-gar-access-${each.value == "" ? "all" : replace(each.value, "/[^a-zA-Z0-9-]/", "-")}"
+    description = "Artifact Registry repositories matching ${each.value}* in ${var.repository_location}"
+    expression  = "resource.name.startsWith(\"projects/${var.project_id}/locations/${var.repository_location}/repositories/${each.value}\")"
+  }
 }
 
 resource "google_service_account_iam_member" "customer_token_creators" {

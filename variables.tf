@@ -16,7 +16,25 @@ variable "repository_location" {
 
 variable "repository_id" {
   type        = string
-  description = "Artifact Registry repository ID (the repository name)."
+  default     = null
+  description = "Artifact Registry repository ID (the repository name). Deprecated: use `repositories`."
+}
+
+variable "repositories" {
+  type        = list(string)
+  default     = []
+  description = <<-EOT
+    Repository IDs and/or prefix patterns to grant read access to. Plain entries
+    (e.g. "my-repo") get a repository-level reader grant. Entries ending in `*`
+    (e.g. "team-*") get a project-level reader grant scoped with an IAM condition
+    to repositories matching that prefix in `repository_location`. GCP IAM does
+    not support full regex; a trailing `*` prefix match is the only pattern form.
+  EOT
+
+  validation {
+    condition     = alltrue([for r in var.repositories : !can(regex("\\*", trimsuffix(r, "*")))])
+    error_message = "`*` is only supported as a trailing wildcard for prefix matching, e.g. \"team-*\"."
+  }
 }
 
 variable "customer_principals" {

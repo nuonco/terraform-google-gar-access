@@ -12,7 +12,7 @@ module "nuon_gar_access" {
 
   project_id          = "<your-gcp-project>"
   repository_location = "us-central1"
-  repository_id       = "<repo-name>"
+  repositories        = ["<repo-name>"]
 
   customer_principals = [
     "serviceAccount:ctl-api-<install>@<customer-project>.iam.gserviceaccount.com",
@@ -26,6 +26,18 @@ output "gar_access_sa_email" {
 
 Pass the resulting service account email into your component's `gcp_gar.service_account_email` field.
 
+### Multiple repositories and prefix patterns
+
+`repositories` takes any mix of exact repository IDs and trailing-`*` prefix patterns:
+
+```hcl
+repositories = ["shared-images", "team-*"]
+```
+
+Exact IDs get a repository-level `roles/artifactregistry.reader` grant. Prefix patterns get a project-level grant scoped with an IAM condition (`resource.name.startsWith`) to repositories matching that prefix in `repository_location` — including repositories created later. GCP IAM does not support regex, so a trailing `*` is the only pattern form; a bare `"*"` matches every repository in the location.
+
+The legacy `repository_id` (single string) still works and is merged into `repositories`, but is deprecated. Note for existing users: upgrading converts the repository-level IAM member to a `for_each` resource, so Terraform will destroy and recreate it (a momentary re-grant, no action needed).
+
 Each entry in `customer_principals` is the IAM member string for a customer's ctl-api service account. The module grants those principals `roles/iam.serviceAccountTokenCreator` so they can impersonate the GAR access service account when pulling images.
 
 ### Customers running Nuon-hosted (AWS)
@@ -38,7 +50,7 @@ module "nuon_gar_access" {
 
   project_id          = "<your-gcp-project>"
   repository_location = "us-central1"
-  repository_id       = "<repo-name>"
+  repositories        = ["<repo-name>"]
 
   aws_principals = [
     { aws_account_id = "123456789012" },

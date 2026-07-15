@@ -96,7 +96,53 @@ resource "google_service_account_iam_member" "aws_federated_impersonation" {
   member             = "principalSet://iam.googleapis.com/projects/${data.google_project.this[0].number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.nuon_aws[0].workload_identity_pool_id}/attribute.aws_account/${each.key}"
 }
 
+locals {
+  azure_principals_by_id = {
+    for p in var.azure_principals : p.principal_id => {
+      tenant_id    = p.tenant_id
+      audience     = coalesce(p.audience, "api://AzureADTokenExchange")
+      provider_id  = coalesce(p.provider_id, "azure-${substr(replace(p.principal_id, "-", ""), 0, 12)}")
+      display_name = coalesce(p.display_name, "Nuon self-hosted on Azure identity ${p.principal_id}")
+    }
+  }
+}
+
+resource "google_iam_workload_identity_pool" "nuon_azure" {
+  count = length(var.azure_principals) > 0 ? 1 : 0
+
+  project                   = var.project_id
+  workload_identity_pool_id = var.azure_workload_identity_pool_id
+  display_name              = "Nuon self-hosted (Azure)"
+  description               = "Federation pool for Nuon ctl-api running in Azure to access GAR"
+}
+
+resource "google_iam_workload_identity_pool_provider" "azure" {
+  for_each = local.azure_principals_by_id
+
+  project                            = var.project_id
+  workload_identity_pool_id          = google_iam_workload_identity_pool.nuon_azure[0].workload_identity_pool_id
+  workload_identity_pool_provider_id = each.value.provider_id
+  display_name                       = each.value.display_name
+
+  oidc {
+    issuer_uri        = "https://sts.windows.net/${each.value.tenant_id}/"
+    allowed_audiences = [each.value.audience]
+  }
+
+  attribute_mapping = {
+    "google.subject" = "assertion.sub"
+  }
+}
+
+resource "google_service_account_iam_member" "azure_federated_impersonation" {
+  for_each = local.azure_principals_by_id
+
+  service_account_id = google_service_account.nuon_gar_access.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principal://iam.googleapis.com/projects/${data.google_project.this[0].number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.nuon_azure[0].workload_identity_pool_id}/subject/${each.key}"
+}
+
 data "google_project" "this" {
-  count      = length(var.aws_principals) > 0 ? 1 : 0
+  count      = length(var.aws_principals) > 0 || length(var.azure_principals) > 0 ? 1 : 0
   project_id = var.project_id
 }

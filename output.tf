@@ -15,3 +15,11 @@ output "workload_identity_provider_paths" {
   }
   description = "Map of AWS account ID to provider path. Use as `gcp_gar.workload_identity_provider`."
 }
+
+output "azure_workload_identity_provider_paths" {
+  value = {
+    for principal_id, _ in local.azure_principals_by_id :
+    principal_id => "${google_iam_workload_identity_pool.nuon_azure[0].name}/providers/${google_iam_workload_identity_pool_provider.azure[principal_id].workload_identity_pool_provider_id}"
+  }
+  description = "Map of Azure managed-identity principal ID to provider path. Use as `gcp_gar.workload_identity_provider`."
+}

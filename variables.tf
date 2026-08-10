@@ -61,5 +61,15 @@ variable "aws_principals" {
     display_name   = optional(string)
   }))
   default     = []
-  description = "AWS accounts allowed to federate via Workload Identity Federation. One provider is created per entry. `provider_id` defaults to `aws-<last 6 chars of account_id>`."
+  description = "AWS accounts allowed to federate via Workload Identity Federation. One provider is created per entry. `provider_id` defaults to `aws-<last 6 chars of account_id>`, and `display_name` to `Nuon AWS <account_id>`."
+
+  # Caught at plan time rather than part-way through an apply, which otherwise
+  # leaves the service account and repository binding created but no provider.
+  validation {
+    condition = alltrue([
+      for p in var.aws_principals :
+      p.display_name == null || length(coalesce(p.display_name, "")) <= 32
+    ])
+    error_message = "display_name must be 32 characters or fewer; Google rejects longer workload identity provider display names."
+  }
 }

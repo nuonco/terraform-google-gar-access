@@ -53,8 +53,10 @@ resource "google_service_account_iam_member" "customer_token_creators" {
 locals {
   aws_principals_by_account = {
     for p in var.aws_principals : p.aws_account_id => {
-      provider_id  = coalesce(p.provider_id, "aws-${substr(p.aws_account_id, length(p.aws_account_id) - 6, 6)}")
-      display_name = coalesce(p.display_name, "Nuon-hosted on AWS account ${p.aws_account_id}")
+      provider_id = coalesce(p.provider_id, "aws-${substr(p.aws_account_id, length(p.aws_account_id) - 6, 6)}")
+      # GCP caps provider display names at 32 characters. AWS account IDs are
+      # always 12 digits, so a longer prefix here fails for every caller.
+      display_name = coalesce(p.display_name, "Nuon AWS ${p.aws_account_id}")
     }
   }
 }

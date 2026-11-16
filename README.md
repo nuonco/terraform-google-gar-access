@@ -64,4 +64,31 @@ output "workload_identity_provider_paths" {
 
 Pass the resulting provider path (keyed by AWS account ID) into the component's `gcp_gar.workload_identity_provider`, alongside the GAR access SA email in `gcp_gar.service_account_email`.
 
-`customer_principals` and `aws_principals` are independent — set whichever apply to your customer mix, both, or neither.
+### Customers running Nuon self-hosted (Azure)
+
+If some of your customers pull from this GAR repo via Nuon ctl-api running self-hosted on Azure, pass each customer's Azure user-assigned managed identity via `azure_principals`. The module sets up a Workload Identity Pool + an OIDC provider per identity (trusting the Entra ID issuer for its tenant) and lets the federated identity impersonate the GAR access service account:
+
+```hcl
+module "nuon_gar_access" {
+  source = "nuonco/gar-access/google"
+
+  project_id          = "<your-gcp-project>"
+  repository_location = "us-central1"
+  repositories        = ["<repo-name>"]
+
+  azure_principals = [
+    {
+      tenant_id    = "<azure-tenant-id>"
+      principal_id = "<managed-identity-principal-id>"
+    },
+  ]
+}
+
+output "azure_workload_identity_provider_paths" {
+  value = module.nuon_gar_access.azure_workload_identity_provider_paths
+}
+```
+
+`principal_id` is the managed identity's principal (object) ID — the `sub` claim Nuon's Azure ctl-api presents. Pass the resulting provider path (keyed by principal ID) into the component's `gcp_gar.workload_identity_provider`, alongside the GAR access SA email in `gcp_gar.service_account_email`. `audience` defaults to `api://AzureADTokenExchange`; override it only if Nuon requests a different token audience.
+
+`customer_principals`, `aws_principals`, and `azure_principals` are independent — set whichever apply to your customer mix, any combination, or none.

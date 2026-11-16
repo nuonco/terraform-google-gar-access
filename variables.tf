@@ -73,3 +73,29 @@ variable "aws_principals" {
     error_message = "display_name must be 32 characters or fewer; Google rejects longer workload identity provider display names."
   }
 }
+
+variable "azure_workload_identity_pool_id" {
+  type        = string
+  default     = "nuon-azure"
+  description = "ID of the Workload Identity Pool created when `azure_principals` is set. One pool is shared across all Azure identities."
+}
+
+variable "azure_principals" {
+  type = list(object({
+    tenant_id    = string
+    principal_id = string
+    provider_id  = optional(string)
+    display_name = optional(string)
+    audience     = optional(string)
+  }))
+  default     = []
+  description = <<-EOT
+    Azure user-assigned managed identities allowed to federate via Workload
+    Identity Federation, for customers running Nuon self-hosted on Azure. One
+    OIDC provider is created per entry, trusting the Entra ID issuer for that
+    tenant. `principal_id` is the identity's principal (object) ID, which is the
+    `sub` claim Nuon's Azure ctl-api presents. `provider_id` defaults to
+    `azure-<first 12 hex chars of principal_id>`, and `audience` defaults to
+    `api://AzureADTokenExchange`.
+  EOT
+}
